@@ -23,12 +23,7 @@
             super."${pkgName}".overridePythonAttrs
             (old: { "${attr}" = (old."${attr}" or [ ]) ++ deps; })) attrArgs))
           args));
-      beancount-importers = pkgs.poetry2nix.mkPoetryEnv {
-        projectDir = ./.;
-        extraPackages = (ps: with ps; [ python-lsp-server ]);
-        python = pkgs.python38;
-        editablePackageSources = { beancount-importers = ./.; };
-        overrides = self:
+      overrides = self:
           mkOverrides {
             buildInputs = with self; {
               rsa = [ poetry ];
@@ -38,9 +33,18 @@
             };
             nativeBuildInputs = with pkgs; { lxml = [ libxml2 libxslt ]; };
           };
+      projectDir = ./.;
+      python = pkgs.python38;
+      poetryEnv = pkgs.poetry2nix.mkPoetryEnv {
+        inherit projectDir python overrides;
+        extraPackages = (ps: with ps; [ python-lsp-server ]);
+        editablePackageSources = { beancount-importers = ./.; };
+      };
+      poetryApplication = pkgs.poetry2nix.mkPoetryApplication {
+        inherit projectDir python overrides;
       };
     in flake-utils.lib.eachDefaultSystem (system: {
-      defaultPackage = beancount-importers;
-      devShell = beancount-importers.env;
+      defaultPackage = poetryApplication;
+      devShell = poetryEnv.env;
     });
 }
