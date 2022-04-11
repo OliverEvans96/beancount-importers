@@ -23,7 +23,7 @@
             super."${pkgName}".overridePythonAttrs
             (old: { "${attr}" = (old."${attr}" or [ ]) ++ deps; })) attrArgs))
           args));
-      myShell = pkgs.poetry2nix.mkPoetryEnv {
+      beancount-importers = pkgs.poetry2nix.mkPoetryEnv {
         projectDir = ./.;
         extraPackages = (ps: with ps; [ python-lsp-server ]);
         python = pkgs.python38;
@@ -40,7 +40,7 @@
           };
       };
     in flake-utils.lib.eachDefaultSystem (system: {
-      defaultPackage = pkgs.hello;
-      devShell = myShell.env;
+      defaultPackage = beancount-importers;
+      devShell = beancount-importers.env;
     });
 }
