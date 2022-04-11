@@ -3,41 +3,50 @@
     nixpkgs-unstable.url = "nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
-  outputs = { self, fenix, nixpkgs, nixpkgs-unstable, flake-utils }:
+  outputs = { self, nixpkgs-unstable, flake-utils }:
       let
         pkgs = nixpkgs-unstable.legacyPackages.x86_64-linux;
         # Inpsired by https://github.com/nix-community/poetry2nix/issues/218#issuecomment-981615612
-        addPythonDeps = super: builtins.mapAttrs (pkgName: pyDeps:
+        addDeps = super: builtins.mapAttrs (pkgName: deps:
           super."${pkgName}".overridePythonAttrs (
             old: {
-              buildInputs = (old.buildInputs or []) ++ pyDeps;
+              buildInputs = (old.buildInputs or []) ++ deps;
             }
           )
         );
-        addNativeDeps = super: builtins.mapAttrs (pkgName: nativeDeps:
+        addNativeDeps = super: builtins.mapAttrs (pkgName: deps:
           super."${pkgName}".overridePythonAttrs (
             old: {
-              nativeBuildInputs = (old.nativeBuildInputs or []) ++ nativeDeps;
+              nativeBuildInputs = (old.nativeBuildInputs or []) ++ deps;
             }
           )
         );
-        mkOverrides = { pythonDeps, nativeDeps }: super:
-          (addPythonDeps super pythonDeps) // (addNativeDeps super nativeDeps);
+        mergeSets = builtins.foldl' pkgs.lib.mergeAttrs {};
+        mkOverrides = args: super:
+          mergeSets (builtins.attrValues (builtins.mapAttrs (attr: attrArgs:
+            (builtins.mapAttrs (pkgName: deps:
+              super."${pkgName}".overridePythonAttrs (
+                old: {
+                  "${attr}" = (old."${attr}" or []) ++ deps;
+                }
+              )
+            ) attrArgs)
+          ) args));
         myShell = pkgs.poetry2nix.mkPoetryEnv {
           projectDir = ./.;
           extraPackages = (ps: with ps; [ python-lsp-server ]);
           python = pkgs.python38;
           editablePackageSources = {
-            my-app = ./.;
+            beancount-importers = ./.;
           };
           overrides = self: mkOverrides {
-            pythonDeps = with self; {
+            buildInputs = with self; {
               rsa = [ poetry ];
               soupsieve = [ hatchling ];
               tomli = [ flit-core ];
               pyparsing = [ flit-core ];
             };
-            nativeDeps = with pkgs; {
+            nativeBuildInputs = with pkgs; {
               lxml = [ libxml2 libxslt ];
             };
           };
