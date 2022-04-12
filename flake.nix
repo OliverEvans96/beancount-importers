@@ -8,15 +8,6 @@
       let
         pkgs = nixpkgs-unstable.legacyPackages.${system};
         # Inpsired by https://github.com/nix-community/poetry2nix/issues/218#issuecomment-981615612
-        addDeps = super:
-          builtins.mapAttrs (pkgName: deps:
-            super."${pkgName}".overridePythonAttrs
-            (old: { buildInputs = (old.buildInputs or [ ]) ++ deps; }));
-        addNativeDeps = super:
-          builtins.mapAttrs (pkgName: deps:
-            super."${pkgName}".overridePythonAttrs (old: {
-              nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ deps;
-            }));
         mergeSets = builtins.foldl' pkgs.lib.mergeAttrs { };
         mkOverrides = args: super:
           mergeSets (builtins.attrValues (builtins.mapAttrs (attr: attrArgs:
