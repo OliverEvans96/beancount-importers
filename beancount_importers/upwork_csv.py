@@ -175,9 +175,9 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
 
                 # Assuming the transactions are in reverse-chronological order,
                 # the first transaction we encounter for a given day should be
-                # chronologically the last, which means that the running balance
-                # listed for that transaction should be the opening balance
-                # on the following day.
+                # chronologically the last, which means that the running
+                # balance for that transaction should be the opening balance
+                # balance on the following day.
                 if txn_date not in self.txn_dates:
                     # Record that we have encountered this date,
                     # so as to avoid duplicate / erroneous balance assertions
