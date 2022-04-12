@@ -35,17 +35,22 @@
             nativeBuildInputs = with pkgs; { lxml = [ libxml2 libxslt ]; };
           };
         projectDir = ./.;
+        makeApplication = python:
+          pkgs.poetry2nix.mkPoetryApplication {
+            inherit projectDir python overrides;
+          };
+        overlay = self: super: {
+          beancount-importers = makeApplication self.python;
+        };
         python = pkgs.python38;
         poetryEnv = pkgs.poetry2nix.mkPoetryEnv {
           inherit projectDir python overrides;
           extraPackages = (ps: with ps; [ python-lsp-server ]);
           editablePackageSources = { beancount-importers = ./.; };
         };
-        poetryApplication = pkgs.poetry2nix.mkPoetryApplication {
-          inherit projectDir python overrides;
-        };
       in {
-        defaultPackage = poetryApplication;
+        inherit overlay;
+        defaultPackage = makeApplication python;
         devShell = poetryEnv.env;
       });
 }
