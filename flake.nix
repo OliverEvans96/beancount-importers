@@ -24,15 +24,15 @@
             (old: { "${attr}" = (old."${attr}" or [ ]) ++ deps; })) attrArgs))
           args));
       overrides = self:
-          mkOverrides {
-            buildInputs = with self; {
-              rsa = [ poetry ];
-              soupsieve = [ hatchling ];
-              tomli = [ flit-core ];
-              pyparsing = [ flit-core ];
-            };
-            nativeBuildInputs = with pkgs; { lxml = [ libxml2 libxslt ]; };
+        mkOverrides {
+          buildInputs = with self; {
+            rsa = [ poetry ];
+            soupsieve = [ hatchling ];
+            tomli = [ flit-core ];
+            pyparsing = [ flit-core ];
           };
+          nativeBuildInputs = with pkgs; { lxml = [ libxml2 libxslt ]; };
+        };
       projectDir = ./.;
       python = pkgs.python38;
       poetryEnv = pkgs.poetry2nix.mkPoetryEnv {
