@@ -9,10 +9,10 @@ from dateutil.parser import parse as parse_date
 
 from beancount.core import flags
 from beancount.core import data
-from beancount.core.number import D
 
 from beancount.ingest import importer
 
+from .utils import simple_posting_pair, usd_amount
 
 UPWORK_ACC_BAL = 'Assets:Upwork:Balance'
 UPWORK_ACC_FP = 'Income:Upwork:FixedPrice'
@@ -21,28 +21,6 @@ UPWORK_ACC_HR = 'Income:Upwork:Hourly'
 UPWORK_ACC_MISC = 'Income:Upwork:Miscellaneous'
 UPWORK_ACC_SF = 'Expenses:Upwork:ServiceFee'
 UPWORK_ACC_REF = 'Expenses:Upwork:Refund'
-
-
-def usd_amount(dollars):
-    """Amount in USD."""
-    return data.Amount(D(dollars), 'USD')
-
-
-def simple_usd_posting(account, dollars):
-    """Create a simple posting in USD with no metadata or cost basis."""
-    amount = usd_amount(dollars)
-    return data.Posting(account, amount, None, None, None, None)
-
-
-def simple_posting_pair(pos_acc, neg_acc, dollars):
-    """Create a pair of simple postings.
-
-    Add `dollars` to `pos_acc` and subtract them from `neg_acc`.
-    """
-    return [
-        simple_usd_posting(pos_acc, dollars),
-        simple_usd_posting(neg_acc, -dollars),
-    ]
 
 
 class UpworkTransactionsImporter(importer.ImporterProtocol):
@@ -175,13 +153,12 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
 
                 entries.append(txn)
 
-                # balance_entry = data.Balance(
-                #     UPWORK_ACC_BAL,
-                #     usd_amount(balance),
-                #     None,
-                #     None,
-                # )
-                # entries.append(balance_entry)
+                balance_entry = data.Balance(
+                    UPWORK_ACC_BAL,
+                    usd_amount(balance),
+                    None,
+                    None,
+                )
+                entries.append(balance_entry)
 
         return entries
-
