@@ -48,11 +48,12 @@ class Header(enum.Enum):
 class TxnType(enum.Enum):
     """Upwork transactions."""
 
-    FP = 'Fixed Price'
-    BON = 'Bonus'
-    HR = 'Hourly'
-    REF = 'Refund'
-    SF = 'Service Fee'
+    WITHDRAWAL = 'Withdrawal'
+    FIXED_PRICE = 'Fixed Price'
+    BONUS = 'Bonus'
+    HOURLY = 'Hourly'
+    REFUND = 'Refund'
+    SERVICE_FEE = 'Service Fee'
     MISC = 'Miscellaneous'
 
 
@@ -112,7 +113,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                 txn_amt = row[Header.AMT.value]
                 txn_type = row[Header.TYPE.value]
 
-                if txn_type == 'Withdrawal':
+                if txn_type == TxnType.WITHDRAWAL.value:
                     # Extract account number from transaction description
                     matches = re.match('.*: xxxx-([0-9]{4})', txn_desc)
                     if matches is not None and len(matches.groups()) > 0:
@@ -132,42 +133,49 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                         dest_account,
                         txn_amt
                     )
-                elif txn_type == 'Fixed Price':
+
+                elif txn_type == TxnType.FIXED_PRICE.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.FP.value,
                         txn_amt
                     )
-                elif txn_type == 'Bonus':
+
+                elif txn_type == TxnType.BONUS.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.BON.value,
                         txn_amt
                     )
-                elif txn_type == 'Hourly':
+
+                elif txn_type == TxnType.HOURLY.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.HR.value,
                         txn_amt
                     )
-                elif txn_type == 'Refund':
+
+                elif txn_type == TxnType.REFUND.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.REF.value,
                         txn_amt
                     )
-                elif txn_type == 'Service Fee':
+
+                elif txn_type == TxnType.SERVICE_FEE.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.SF.value,
                         txn_amt
                     )
-                elif txn_type == 'Miscellaneous':
+
+                elif txn_type == TxnType.MISC.value:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.MISC.value,
                         txn_amt
                     )
+
                 else:
                     msg = "Unknown transaction type: {}".format(txn_type)
                     raise ValueError(msg)
