@@ -3,27 +3,58 @@
 """Beancount importer for upwork transactions CSV."""
 
 import csv
-import re
-import os
-from dateutil.parser import parse as parse_date
 import datetime
+import enum
+import os
+import re
 
-from beancount.core import flags
-from beancount.core import data
-
+from beancount.core import data, flags
 from beancount.ingest import importer
+from dateutil.parser import parse as parse_date
 
-from .utils import simple_posting_pair
-from .utils import usd_amount
-from .utils import open_usd_accounts
+from .utils import open_usd_accounts, simple_posting_pair, usd_amount
 
-UPWORK_ACC_BAL = 'Assets:Upwork:Balance'
-UPWORK_ACC_FP = 'Income:Upwork:FixedPrice'
-UPWORK_ACC_BON = 'Income:Upwork:Bonus'
-UPWORK_ACC_HR = 'Income:Upwork:Hourly'
-UPWORK_ACC_MISC = 'Income:Upwork:Miscellaneous'
-UPWORK_ACC_SF = 'Expenses:Upwork:ServiceFee'
-UPWORK_ACC_REF = 'Expenses:Upwork:Refund'
+
+class Account(enum.Enum):
+    """Upwork accounts."""
+
+    BAL = 'Assets:Upwork:Balance'
+    FP = 'Income:Upwork:FixedPrice'
+    BON = 'Income:Upwork:Bonus'
+    HR = 'Income:Upwork:Hourly'
+    MISC = 'Income:Upwork:Miscellaneous'
+    SF = 'Expenses:Upwork:ServiceFee'
+    REF = 'Expenses:Upwork:Refund'
+
+
+class Header(enum.Enum):
+    """Upwork CSV headers."""
+
+    DATE = 'Date'
+    REF = 'Ref ID'
+    TYPE = 'Type'
+    DESC = 'Description'
+    AGEN = 'Agency'
+    FRLN = 'Freelancer'
+    TEAM = 'Team'
+    ACNT = 'Account Name'
+    PO = 'PO'
+    AMT = 'Amount'
+    AMT_LC = 'Amount in local currency'
+    CUR = 'Currency'
+    BAL = 'Balance'
+
+
+class TxnType(enum.Enum):
+    """Upwork transactions."""
+
+    FP = 'Fixed Price'
+    BON = 'Bonus'
+    HR = 'Hourly'
+    REF = 'Refund'
+    SF = 'Service Fee'
+    MISC = 'Miscellaneous'
+
 
 DEFAULT_OPEN_DATE = datetime.date(2018, 1, 1)
 
@@ -43,7 +74,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
     def identify(self, file_cache):
         """Determine whether a given file can be processed by this importer."""
         filename_matches = re.match(
-            'statements'
+            '^statements'
             '_[0-9]{4}-[0-9]{2}-[0-9]{2}'  # start date
             '_[0-9]{4}-[0-9]{2}-[0-9]{2}'  # end date
             '.csv$',
@@ -51,19 +82,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
         )
 
         expected_headers = [
-            'Date',
-            'Ref ID',
-            'Type',
-            'Description',
-            'Agency',
-            'Freelancer',
-            'Team',
-            'Account Name',
-            'PO',
-            'Amount',
-            'Amount in local currency',
-            'Currency',
-            'Balance'
+            hd.value for hd in Header
         ]
 
         # First check filename
@@ -80,13 +99,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
     def extract(self, file_cache):
         """Extract the transactions from the CSV."""
         open_accounts = [
-            UPWORK_ACC_BAL,
-            UPWORK_ACC_FP,
-            UPWORK_ACC_BON,
-            UPWORK_ACC_HR,
-            UPWORK_ACC_MISC,
-            UPWORK_ACC_SF,
-            UPWORK_ACC_REF,
+            acc.value for acc in Account
         ] + list(self.bank_account_dict.values())
         open_entries = open_usd_accounts(open_accounts, self.open_date)
 
@@ -94,10 +107,10 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
 
         with open(file_cache.name) as fh:
             for index, row in enumerate(csv.DictReader(fh)):
-                txn_date = parse_date(row['Date']).date()
-                txn_desc = row['Description']
-                txn_amt = row['Amount']
-                txn_type = row['Type']
+                txn_date = parse_date(row[Header.DATE.value]).date()
+                txn_desc = row[Header.DESC.value]
+                txn_amt = row[Header.AMT.value]
+                txn_type = row[Header.TYPE.value]
 
                 if txn_type == 'Withdrawal':
                     # Extract account number from transaction description
@@ -115,44 +128,44 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                     # which is why `UPWORK_ACC_BAL` is always
                     # the first argument to `simple_posting_pair`
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
+                        Account.BAL.value,
                         dest_account,
                         txn_amt
                     )
                 elif txn_type == 'Fixed Price':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_FP,
+                        Account.BAL.value,
+                        Account.FP.value,
                         txn_amt
                     )
                 elif txn_type == 'Bonus':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_BON,
+                        Account.BAL.value,
+                        Account.BON.value,
                         txn_amt
                     )
                 elif txn_type == 'Hourly':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_HR,
+                        Account.BAL.value,
+                        Account.HR.value,
                         txn_amt
                     )
                 elif txn_type == 'Refund':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_REF,
+                        Account.BAL.value,
+                        Account.REF.value,
                         txn_amt
                     )
                 elif txn_type == 'Service Fee':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_SF,
+                        Account.BAL.value,
+                        Account.SF.value,
                         txn_amt
                     )
                 elif txn_type == 'Miscellaneous':
                     postings = simple_posting_pair(
-                        UPWORK_ACC_BAL,
-                        UPWORK_ACC_MISC,
+                        Account.BAL.value,
+                        Account.MISC.value,
                         txn_amt
                     )
                 else:
@@ -188,7 +201,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                     balance_entry = data.Balance(
                         meta,
                         balance_date,
-                        UPWORK_ACC_BAL,
+                        Account.BAL.value,
                         usd_amount(balance),
                         None,
                         None,
