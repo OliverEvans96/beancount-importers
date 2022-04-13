@@ -72,6 +72,26 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
         # to help construct balance assertions
         self.txn_dates = set()
 
+    def file_account(self, file_cache):
+        """Determine account related to this file."""
+        return 'Assets:Upwork'
+
+    def file_date(self, file_cache):
+        """Determine the date related to this file."""
+        filename_matches = re.match(
+            '^statements'
+            '_[0-9]{4}-[0-9]{2}-[0-9]{2}'  # start date
+            '_([0-9]{4}-[0-9]{2}-[0-9]{2})'  # end date
+            '.csv$',
+            os.path.basename(file_cache.name)
+        )
+
+        if filename_matches is not None:
+            groups = filename_matches.groups()
+            if len(groups) > 0:
+                date_str = groups[0]
+                return datetime.datetime.strptime(date_str, '%Y-%m-%d')
+
     def identify(self, file_cache):
         """Determine whether a given file can be processed by this importer."""
         filename_matches = re.match(
