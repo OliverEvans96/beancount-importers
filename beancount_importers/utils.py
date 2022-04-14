@@ -8,6 +8,39 @@ from beancount.core.number import D
 USD = 'USD'
 
 
+import hashlib
+import uuid
+
+
+def transaction_id(txn: data.Transaction):
+    """Generate a unique and consistent id from a transaction's metadata."""
+    h = hashlib.sha256()
+    if txn.meta is not None:
+        if 'filename' in txn.meta and 'lineno' in txn.meta:
+            h.update(txn.meta['filename'].encode())
+            h.update(txn.meta['lineno'].to_bytes(8, 'big'))
+            d = h.digest()
+            u = uuid.UUID(bytes=d[:16])
+            return str(u)
+
+
+def split_txn(txn):
+    """Split a simple transaction into src and dst postings."""
+    # This won't work for more complex transactions.
+    assert len(txn.postings) == 2
+
+    src_posting = None
+    dst_posting = None
+
+    for posting in txn.postings:
+        if posting.units.number > 0:
+            dst_posting = posting
+        elif posting.units.number < 0:
+            src_posting = posting
+
+    return (src_posting, dst_posting)
+
+
 def usd_amount(dollars):
     """Amount in USD."""
     return data.Amount(D(dollars), USD)
