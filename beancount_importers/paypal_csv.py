@@ -14,6 +14,7 @@ from beancount.ingest import importer
 from dateutil.parser import parse as parse_date
 
 from .utils import open_account, open_accounts
+from .utils import simple_posting
 from .utils import simple_posting_pair
 from .utils import usd_amount
 from .utils import pad_account
@@ -150,6 +151,9 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
         # (per-currency) for balance assertions
         prev_balances = {}
 
+        # Used for combining currency conversion transactions
+        first_conv_posting = None
+
         with open(file_cache.name, encoding=ENCODING) as fh:
             for index, row in enumerate(csv.DictReader(fh)):
                 txn_date = parse_date(row[Header.DATE.value]).date()
@@ -162,6 +166,13 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
                 txn_type = row[Header.TYPE.value].strip()
                 txn_status = TxnStatus(row[Header.STAT.value].strip())
                 balance = row[Header.BAL.value]
+
+                flag = flags.FLAG_WARNING
+                more_tags = set()
+
+                # Whether to skip outputting a transaction
+                # (but finish the loop iteration)
+                no_output = False
 
                 # Skip transactions with no amount
                 if not txn_amt:
@@ -197,15 +208,9 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
 
                 elif txn_type == 'Donation Payment':
                     src_acc = Account.DON.value
+                    flag = flags.FLAG_OKAY
 
                 dst_acc = Account.BAL.value
-
-                postings = simple_posting_pair(
-                    dst_acc,
-                    src_acc,
-                    txn_amt,
-                    currency=txn_cur,
-                )
 
                 meta_kwargs = {
                     'status': txn_status.value,
@@ -217,17 +222,70 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
                     index,
                     meta_kwargs.items()
                 )
-                txn = data.Transaction(
-                    meta=meta,
-                    date=txn_date,
-                    flag=flags.FLAG_OKAY,
-                    payee=None,
-                    narration=txn_desc,
-                    tags={'paypal'},
-                    links=set(),
-                    postings=postings,
-                )
-                entries.append(txn)
+
+                # Combine currency conversions into single transactions
+                if txn_type == 'General Currency Conversion':
+                    if first_conv_posting is None:
+                        # If the previous transaction was not a currency
+                        # conversion transaction, then save this info
+                        # but don't output a transaction.
+                        first_conv_posting = simple_posting(
+                            account=Account.BAL.value,
+                            amount=txn_amt,
+                            currency=txn_cur,
+                        )
+                        no_output = True
+                    else:
+                        # If this is the second consecutive conversion
+                        # transaction, then use the previous one to
+                        # output a single transaction now.
+                        second_conv_posting = simple_posting(
+                            account=Account.BAL.value,
+                            amount=txn_amt,
+                            currency=txn_cur,
+                        )
+
+                        # Add a price to the second posting
+                        first_num = first_conv_posting.units.number
+                        second_num = second_conv_posting.units.number
+                        # Add the minus sign because the postings sum to zero.
+                        conversion_rate = -first_num / second_num
+                        second_conv_posting = second_conv_posting._replace(
+                            price=data.Amount(
+                                D(f'{conversion_rate:.5g}'),
+                                first_conv_posting.units.currency
+                            )
+                        )
+
+                        postings = [
+                            first_conv_posting,
+                            second_conv_posting,
+                        ]
+                        more_tags.add('currency-conversion')
+                        flag = flags.FLAG_OKAY
+                else:
+                    # If this isn't a currency conversion
+                    # transaction, then clear the cache.
+                    first_conv_posting = None
+                    postings = simple_posting_pair(
+                        dst_acc,
+                        src_acc,
+                        txn_amt,
+                        currency=txn_cur,
+                    )
+
+                if not no_output:
+                    txn = data.Transaction(
+                        meta=meta,
+                        date=txn_date,
+                        flag=flag,
+                        payee=None,
+                        narration=txn_desc,
+                        tags={'paypal'} | more_tags,
+                        links=set(),
+                        postings=postings,
+                    )
+                    entries.append(txn)
 
                 # Assuming the transactions are in chronological order,
                 # each time we encounter a new date, the previous
