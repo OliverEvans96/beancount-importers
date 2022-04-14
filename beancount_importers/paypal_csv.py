@@ -28,6 +28,7 @@ class Account(enum.Enum):
     """Paypal accounts."""
 
     BAL = 'Assets:Paypal:Balance'
+    HELD = 'Assets:Paypal:Held'
     DON = 'Expenses:Donations:Paypal'
     TRANS = 'Assets:InTransit:Paypal'
 
@@ -136,6 +137,7 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
             self.currencies
         )
         other_open_entries = open_accounts([
+            Account.HELD.value,
             Account.DON.value,
             Account.TRANS.value,
         ], self.open_date, self.currencies)
@@ -208,6 +210,10 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
 
                 elif txn_type == 'Donation Payment':
                     src_acc = Account.DON.value
+                    flag = flags.FLAG_OKAY
+
+                elif txn_type in ['Payment Hold', 'Payment Release']:
+                    src_acc = Account.HELD.value
                     flag = flags.FLAG_OKAY
 
                 dst_acc = Account.BAL.value
