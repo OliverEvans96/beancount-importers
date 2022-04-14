@@ -67,18 +67,6 @@ def read_records(filename, skip_lines=SKIP_LINES):
             else:
                 yield i+1, fields
 
-# def dict_reader_from_records(line_iter):
-#     """Transform csv.reader output into csv.DictReader output.
-
-#     Given an iterator over lists of strings, return an iterator
-#     over dicts, mapping headers to field values.
-
-#     It is assumed that the first line contains headers,
-#     and that each line contains the same number of fields."""
-#     headers = next(line_iter)
-#     for fields in line_iter:
-#         yield dict(zip(headers, fields))
-
 
 class SchwabBankTransactionsImporter(importer.ImporterProtocol):
     """Schwab checking account CSV transactions importer."""
@@ -289,11 +277,6 @@ class SchwabBankTransactionsImporter(importer.ImporterProtocol):
                 # Record that we have encountered this date,
                 # so as to avoid duplicate / erroneous balance assertions
                 self.txn_dates.add(txn_date)
-
-                # # Create an extra balance assertion before the
-                # # first transaction so that pads work correctly
-                # # after opening the account.
-                # if
 
                 # Remove dollar sign
                 balance = row[Header.BAL.value].replace('$', '')
