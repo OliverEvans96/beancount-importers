@@ -110,10 +110,11 @@ def get_account_from_upwork_description(txn_desc, account_dict):
 class UpworkTransactionsImporter(importer.ImporterProtocol):
     """Upwork CSV transactions importer."""
 
-    def __init__(self, bank_account_dict, open_date=DEFAULT_OPEN_DATE):
+    def __init__(self, bank_account_dict, clear_before_date, open_date=DEFAULT_OPEN_DATE):
         """Initialize."""
         self.bank_account_dict = bank_account_dict
         self.open_date = open_date
+        self.clear_before_date = clear_before_date
 
         # Maintain a list of unique transaction dates
         # to help construct balance assertions
@@ -185,9 +186,12 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                 txn_type = TxnType(row[Header.TYPE.value])
 
                 if txn_type == TxnType.WITHDRAWAL:
-
-                    last_four = get_last_four_from_upwork_description(txn_desc)
-                    dest_account = upwork_in_transit_account_name(last_four)
+                    # Before this date, we have no matching bank transactions.
+                    if txn_date < self.clear_before_date:
+                        dest_account = 'Equity:Earnings:Previous'
+                    else:
+                        last_four = get_last_four_from_upwork_description(txn_desc)
+                        dest_account = upwork_in_transit_account_name(last_four)
 
                     # NOTE: sign of amount (positive or negative)
                     # depends on whether the transaction type

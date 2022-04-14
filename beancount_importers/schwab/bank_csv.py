@@ -19,7 +19,7 @@ from ..utils import usd_amount
 from ..utils import open_usd_accounts
 from ..utils import pad_account
 
-DEFAULT_OPEN_DATE = datetime.date(2010, 1, 1)
+DEFAULT_OPEN_DATE = datetime.date(2016, 1, 1)
 DEFAULT_EXPENSE_ACC = 'Expenses:Uncategorized'
 DEFAULT_INCOME_ACC = 'Income:Uncategorized'
 
