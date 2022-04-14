@@ -22,13 +22,13 @@ IN_TRANSIT_ACCOUNT_PREFIX = 'Assets:InTransit:Upwork'
 class Account(enum.Enum):
     """Upwork accounts."""
 
-    BAL = 'Assets:Upwork:Balance'
-    FP = 'Income:Upwork:FixedPrice'
-    BON = 'Income:Upwork:Bonus'
-    HR = 'Income:Upwork:Hourly'
-    MISC = 'Income:Upwork:Miscellaneous'
-    SF = 'Expenses:Upwork:ServiceFee'
-    REF = 'Expenses:Upwork:Refund'
+    BAL = 'Assets:Freelance:Upwork:Balance'
+    FP = 'Income:Freelance:Upwork:FixedPrice'
+    BON = 'Income:Freelance:Upwork:Bonus'
+    HR = 'Income:Freelance:Upwork:Hourly'
+    MISC = 'Income:Freelance:Upwork:Miscellaneous'
+    SF = 'Expenses:Freelance:Upwork:ServiceFee'
+    REF = 'Expenses:Freelance:Upwork:Refund'
 
 
 class Header(enum.Enum):
