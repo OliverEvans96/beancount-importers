@@ -9,6 +9,7 @@ import os
 import re
 
 from beancount.core import data, flags
+from beancount.core.number import D
 from beancount.ingest import importer
 from dateutil.parser import parse as parse_date
 
@@ -70,11 +71,12 @@ class TxnStatus(enum.Enum):
 class PaypalTransactionsImporter(importer.ImporterProtocol):
     """Paypal CSV transactions importer."""
 
-    def __init__(self, clear_before_date, currencies=['USD'], open_date=DEFAULT_OPEN_DATE):
+    def __init__(self, clear_before_date, currencies=['USD'], open_date=DEFAULT_OPEN_DATE, pad=True):
         """Initialize."""
         self.open_date = open_date
         self.clear_before_date = clear_before_date
         self.currencies = currencies
+        self.pad = pad
 
         # Maintain a list of unique transaction dates
         # to help construct balance assertions
@@ -132,19 +134,21 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
             self.open_date,
             self.currencies
         )
-        pad_entry = pad_account(Account.BAL.value, self.open_date)
         other_open_entries = open_accounts([
             Account.DON.value,
             Account.TRANS.value,
         ], self.open_date, self.currencies)
         entries = [
             open_entry,
-            pad_entry
         ] + other_open_entries
 
-        # Keep track of previous balance
-        # for balance assertions
-        prev_balance = None
+        if self.pad:
+            pad_entry = pad_account(Account.BAL.value, self.open_date)
+            entries += pad_entry
+
+        # Keep track of previous balances
+        # (per-currency) for balance assertions
+        prev_balances = {}
 
         with open(file_cache.name, encoding=ENCODING) as fh:
             for index, row in enumerate(csv.DictReader(fh)):
@@ -171,7 +175,18 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
 
                 # Paypal bug? Some transactions don't seem to affect
                 # the balance. Ignore such "ghost" transactions.
-                if balance == prev_balance:
+                if txn_cur in prev_balances:
+                    if balance == prev_balances[txn_cur]:
+                        continue
+
+                # Skip certain types of "transactions"
+                # that don't actually move funds
+                skip_types = [
+                    'Request Received',
+                    'Request Sent'
+                ]
+
+                if txn_type in skip_types:
                     continue
 
                 if txn_type == 'General Withdrawal':
@@ -223,14 +238,15 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
                     # so as to avoid duplicate / erroneous balance assertions
                     self.txn_dates.add(txn_date)
 
-                    if prev_balance is not None:
+                    for cur, prev_balance in prev_balances.items():
                         balance_date = txn_date
                         meta = data.new_metadata(file_cache.name, index)
+                        bal_amt = data.Amount(D(prev_balance), cur)
                         balance_entry = data.Balance(
                             meta,
                             balance_date,
                             Account.BAL.value,
-                            usd_amount(prev_balance),
+                            bal_amt,
                             tolerance=None,
                             diff_amount=None,
                         )
@@ -239,6 +255,6 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
 
                 # Save this transaction's balance in case
                 # it's the last for the day.
-                prev_balance = balance
+                prev_balances[txn_cur] = balance
 
         return entries
