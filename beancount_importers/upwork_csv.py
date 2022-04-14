@@ -15,6 +15,9 @@ from dateutil.parser import parse as parse_date
 from .utils import open_usd_accounts, simple_posting_pair, usd_amount
 
 
+DEFAULT_OPEN_DATE = datetime.date(2018, 1, 1)
+IN_TRANSIT_ACCOUNT_PREFIX = 'Assets:InTransit:Upwork'
+
 class Account(enum.Enum):
     """Upwork accounts."""
 
@@ -57,7 +60,51 @@ class TxnType(enum.Enum):
     MISC = 'Miscellaneous'
 
 
-DEFAULT_OPEN_DATE = datetime.date(2018, 1, 1)
+class UpworkTxnTag(enum.Enum):
+    """Beancount tags to apply to upwork transactions."""
+
+    WITHDRAWAL = 'Upwork-Withdrawal'
+    FIXED_PRICE = 'Upwork-FixedPrice'
+    BONUS = 'Upwork-Bonus'
+    HOURLY = 'Upwork-Hourly'
+    REFUND = 'Upwork-Refund'
+    SERVICE_FEE = 'Upwork-ServiceFee'
+    MISC = 'Upwork-Miscellaneous'
+
+
+def upwork_in_transit_account_name(last_four):
+    """Create the full in-transit account name
+    given the last four digits of the destination
+    account number."""
+    return f"{IN_TRANSIT_ACCOUNT_PREFIX}:Schwab-{last_four}"
+
+
+def txn_type_to_tag(txn_type: TxnType):
+    """Convert transaction type (from CSV) to beancount tag."""
+    # NOTE: This assumes that `TxnType` and `UpworkTxnTag`
+    # variant names are identical.
+    return UpworkTxnTag.__getattr__(txn_type.name)
+
+
+def get_last_four_from_upwork_description(txn_desc):
+    """Extract the last four digits of destination account
+    from Upwork withdrawal description."""
+    matches = re.match('.*: xxxx-([0-9]{4})', txn_desc)
+    if matches is not None and len(matches.groups()) > 0:
+        last_four = matches[1]
+        return last_four
+    else:
+        msg = ("Could not extract acount number from "
+               f"Withdrawal description: '{txn_desc}'")
+        raise ValueError(msg)
+
+
+def get_account_from_upwork_description(txn_desc, account_dict):
+    """Extract beancount account from upwork transaction description."""
+    # Extract account number from transaction description
+    last_four = get_last_four_from_upwork_description(txn_desc)
+    dest_account = account_dict[last_four]
+    return dest_account
 
 
 class UpworkTransactionsImporter(importer.ImporterProtocol):
@@ -90,7 +137,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
             groups = filename_matches.groups()
             if len(groups) > 0:
                 date_str = groups[0]
-                return datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                return parse_date(date_str).date()
 
     def identify(self, file_cache):
         """Determine whether a given file can be processed by this importer."""
@@ -119,9 +166,13 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
 
     def extract(self, file_cache):
         """Extract the transactions from the CSV."""
+        in_transit_accounts = [
+            upwork_in_transit_account_name(last_four)
+            for last_four in self.bank_account_dict.keys()
+        ]
         open_accounts = [
             acc.value for acc in Account
-        ] + list(self.bank_account_dict.values())
+        ] + in_transit_accounts
         open_entries = open_usd_accounts(open_accounts, self.open_date)
 
         entries = open_entries
@@ -131,18 +182,13 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                 txn_date = parse_date(row[Header.DATE.value]).date()
                 txn_desc = row[Header.DESC.value]
                 txn_amt = row[Header.AMT.value]
-                txn_type = row[Header.TYPE.value]
+                txn_type = TxnType(row[Header.TYPE.value])
 
-                if txn_type == TxnType.WITHDRAWAL.value:
-                    # Extract account number from transaction description
-                    matches = re.match('.*: xxxx-([0-9]{4})', txn_desc)
-                    if matches is not None and len(matches.groups()) > 0:
-                        last_four = matches[1]
-                    else:
-                        msg = ("Could not extract acount number from "
-                               f"Withdrawal description: '{txn_desc}'")
-                        raise ValueError(msg)
-                    dest_account = self.bank_account_dict[last_four]
+                if txn_type == TxnType.WITHDRAWAL:
+
+                    last_four = get_last_four_from_upwork_description(txn_desc)
+                    dest_account = upwork_in_transit_account_name(last_four)
+
                     # NOTE: sign of amount (positive or negative)
                     # depends on whether the transaction type
                     # increases or decreases the balance,
@@ -154,42 +200,42 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                         txn_amt
                     )
 
-                elif txn_type == TxnType.FIXED_PRICE.value:
+                elif txn_type == TxnType.FIXED_PRICE:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.FP.value,
                         txn_amt
                     )
 
-                elif txn_type == TxnType.BONUS.value:
+                elif txn_type == TxnType.BONUS:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.BON.value,
                         txn_amt
                     )
 
-                elif txn_type == TxnType.HOURLY.value:
+                elif txn_type == TxnType.HOURLY:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.HR.value,
                         txn_amt
                     )
 
-                elif txn_type == TxnType.REFUND.value:
+                elif txn_type == TxnType.REFUND:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.REF.value,
                         txn_amt
                     )
 
-                elif txn_type == TxnType.SERVICE_FEE.value:
+                elif txn_type == TxnType.SERVICE_FEE:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.SF.value,
                         txn_amt
                     )
 
-                elif txn_type == TxnType.MISC.value:
+                elif txn_type == TxnType.MISC:
                     postings = simple_posting_pair(
                         Account.BAL.value,
                         Account.MISC.value,
@@ -207,11 +253,10 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                     flag=flags.FLAG_OKAY,
                     payee=None,
                     narration=txn_desc,
-                    tags=set(),
+                    tags={txn_type_to_tag(txn_type).value},
                     links=set(),
                     postings=postings,
                 )
-
                 entries.append(txn)
 
                 # Assuming the transactions are in reverse-chronological order,
@@ -224,15 +269,15 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
                     # so as to avoid duplicate / erroneous balance assertions
                     self.txn_dates.add(txn_date)
 
-                    balance = row['Balance']
+                    balance = row[Header.BAL.value]
                     balance_date = txn_date + datetime.timedelta(days=1)
                     balance_entry = data.Balance(
                         meta,
                         balance_date,
                         Account.BAL.value,
                         usd_amount(balance),
-                        None,
-                        None,
+                        tolerance=None,
+                        diff_amount=None,
                     )
 
                     entries.append(balance_entry)

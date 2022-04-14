@@ -32,9 +32,16 @@ def simple_posting_pair(pos_acc, neg_acc, dollars):
     ]
 
 
+def blank_metadata():
+    """Create a new metadata object with no source filename or line number."""
+    filename, line_num = None, None
+    meta = data.new_metadata(filename, line_num)
+    return meta
+
+
 def open_usd_account(account_name, open_date):
     """Create an open directive for an account with only USD."""
-    meta = data.new_metadata(None, None)
+    meta = blank_metadata()
     return data.Open(
         meta,
         open_date,
@@ -51,3 +58,9 @@ def open_usd_accounts(account_names, open_date):
         open_usd_account(account_name, open_date)
         for account_name in account_names
     ]
+
+
+def pad_account(account, date, src_account='Equity:OpeningBalances'):
+    """Pad account balance from Equity:OpeningBalances."""
+    meta = blank_metadata()
+    return data.Pad(meta, date, account, src_account)
