@@ -45,23 +45,27 @@ def usd_amount(dollars):
     """Amount in USD."""
     return data.Amount(D(dollars), USD)
 
-
 def simple_usd_posting(account, dollars, negative=False):
     """Create a simple posting in USD with no metadata or cost basis."""
-    amount = usd_amount(dollars)
+    return simple_posting(account, dollars, negative)
+
+
+def simple_posting(account, amount, negative=False, currency=USD):
+    """Create a simple posting with no metadata or cost basis."""
+    amount = data.Amount(D(amount), currency)
     if negative:
         amount = -amount
     return data.Posting(account, amount, None, None, None, None)
 
 
-def simple_posting_pair(pos_acc, neg_acc, dollars):
+def simple_posting_pair(pos_acc, neg_acc, amount, currency='USD'):
     """Create a pair of simple postings.
 
     Add `dollars` to `pos_acc` and subtract them from `neg_acc`.
     """
     return [
-        simple_usd_posting(pos_acc, dollars),
-        simple_usd_posting(neg_acc, dollars, negative=True),
+        simple_posting(pos_acc, amount, currency=currency),
+        simple_posting(neg_acc, amount, negative=True, currency=currency),
     ]
 
 
@@ -72,23 +76,23 @@ def blank_metadata():
     return meta
 
 
-def open_usd_account(account_name, open_date):
-    """Create an open directive for an account with only USD."""
+def open_account(account_name, open_date, currencies=[USD]):
+    """Create an open directive for an account."""
     meta = blank_metadata()
     return data.Open(
         meta,
         open_date,
         account_name,
-        [USD],
+        currencies,
         None,
         # data.Booking.STRICT,
     )
 
 
-def open_usd_accounts(account_names, open_date):
-    """Create an open directive for multiple accounts with only USD."""
+def open_accounts(account_names, open_date, currencies=[USD]):
+    """Create an open directive for multiple accounts."""
     return [
-        open_usd_account(account_name, open_date)
+        open_account(account_name, open_date, currencies)
         for account_name in account_names
     ]
 

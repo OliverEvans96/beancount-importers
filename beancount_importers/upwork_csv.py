@@ -12,9 +12,10 @@ from beancount.core import data, flags
 from beancount.ingest import importer
 from dateutil.parser import parse as parse_date
 
-from .utils import open_usd_accounts, simple_posting_pair, usd_amount
+from .utils import open_accounts, simple_posting_pair, usd_amount
 
 
+ENCODING='utf8'
 DEFAULT_OPEN_DATE = datetime.date(2018, 1, 1)
 IN_TRANSIT_ACCOUNT_PREFIX = 'Assets:InTransit:Upwork'
 
@@ -157,7 +158,7 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
         # First check filename
         if filename_matches is not None:
             # If filename matches, check header
-            with open(file_cache.name) as fh:
+            with open(file_cache.name, encoding=ENCODING) as fh:
                 reader = csv.reader(fh)
                 headers = next(reader)
                 is_valid = (headers == expected_headers)
@@ -171,14 +172,14 @@ class UpworkTransactionsImporter(importer.ImporterProtocol):
             upwork_in_transit_account_name(last_four)
             for last_four in self.bank_account_dict.keys()
         ]
-        open_accounts = [
+        accounts_to_open = [
             acc.value for acc in Account
         ] + in_transit_accounts
-        open_entries = open_usd_accounts(open_accounts, self.open_date)
+        open_entries = open_accounts(accounts_to_open, self.open_date)
 
         entries = open_entries
 
-        with open(file_cache.name) as fh:
+        with open(file_cache.name, encoding=ENCODING) as fh:
             for index, row in enumerate(csv.DictReader(fh)):
                 txn_date = parse_date(row[Header.DATE.value]).date()
                 txn_desc = row[Header.DESC.value]

@@ -16,9 +16,10 @@ from beancount.ingest import importer
 
 from ..utils import simple_posting_pair
 from ..utils import usd_amount
-from ..utils import open_usd_accounts
+from ..utils import open_accounts
 from ..utils import pad_account
 
+ENCODING = 'utf8'
 DEFAULT_OPEN_DATE = datetime.date(2016, 1, 1)
 DEFAULT_EXPENSE_ACC = 'Expenses:Uncategorized'
 DEFAULT_INCOME_ACC = 'Income:Uncategorized'
@@ -59,7 +60,7 @@ def read_records(filename, skip_lines=SKIP_LINES):
     Skip lines that are known to be irrelevant.
     Yields (line_num, records) for each line."""
 
-    with open(filename) as fh:
+    with open(filename, encoding=ENCODING) as fh:
         reader = csv.reader(fh)
         for i, fields in enumerate(reader):
             if i+1 in skip_lines:
@@ -159,7 +160,7 @@ class SchwabBankTransactionsImporter(importer.ImporterProtocol):
             account_suffix
         ])
 
-        open_entries = open_usd_accounts([
+        open_entries = open_accounts([
             # TODO : Clean this up
             account_name,
             # DEFAULT_EXPENSE_ACC,
@@ -168,9 +169,7 @@ class SchwabBankTransactionsImporter(importer.ImporterProtocol):
             interest_acc,
             # 'Equity:OpeningBalances'
         ], self.open_date)
-
         pad_entry = pad_account(account_name, self.open_date)
-
         entries = open_entries + [pad_entry]
 
         records_reader = read_records(file_cache.name)
