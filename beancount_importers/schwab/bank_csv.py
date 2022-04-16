@@ -253,7 +253,12 @@ class SchwabBankTransactionsImporter(importer.ImporterProtocol):
                 ])
                 raise ValueError(msg)
 
-            meta = data.new_metadata(file_cache.name, index)
+            meta_kwargs = {'type': txn_type}
+            meta = data.new_metadata(
+                file_cache.name,
+                index,
+                meta_kwargs.items(),
+            )
             txn = data.Transaction(
                 meta=meta,
                 date=txn_date,

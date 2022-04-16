@@ -222,11 +222,10 @@ class PaypalTransactionsImporter(importer.ImporterProtocol):
                     'status': txn_status.value,
                     'type': txn_type,
                 }
-
                 meta = data.new_metadata(
                     file_cache.name,
                     index,
-                    meta_kwargs.items()
+                    meta_kwargs.items(),
                 )
 
                 # Combine currency conversions into single transactions
